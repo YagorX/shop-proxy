@@ -106,5 +106,5 @@ curl -X POST -H "Authorization: Bearer <access_token>" -H "X-App-Id: 1" http://l
 ## Что осталось улучшить
 
 1. Добавить больше видов fault injection, например bandwidth limit.
-2. Подключить `shop-proxy` в `shop-platform/deploy/docker-compose.yml`.
-3. Добавить scrape target в Prometheus и описать звездочку в основном отчете.
+2. Добавить больше operational сценариев, например jitter или bandwidth limit.
+3. При желании добавить отдельный dashboard в Grafana под `proxy_*` метрики.
