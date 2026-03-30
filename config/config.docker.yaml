@@ -1,0 +1,29 @@
+service_name: proxy-service
+env: docker
+version: dev
+
+log_level: info
+shutdown_timeout: 10s
+
+http:
+  addr: ":8085"
+  timeout: 5s
+
+proxy:
+  listen_addr: ":9095"
+  upstream_addr: "catalog-service:9091"
+  timeout: 5s
+
+auth_grpc:
+  addr: "auth-service:44044"
+  timeout: 3s
+
+auth_tls:
+  enabled: true
+  ca_file: /app/certs/ca.crt
+  server_name: auth-service
+  client_cert_file: /app/certs/gateway-client.crt
+  client_key_file: /app/certs/gateway-client.key
+
+faults:
+  delay: 0s

@@ -16,9 +16,11 @@ type Config struct {
 	LogLevel        string        `yaml:"log_level" env-default:"info"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env-default:"10s"`
 
-	HTTP   HTTPConfig   `yaml:"http"`
-	Proxy  ProxyConfig  `yaml:"proxy"`
-	Faults FaultsConfig `yaml:"faults"`
+	HTTP     HTTPConfig   `yaml:"http"`
+	Proxy    ProxyConfig  `yaml:"proxy"`
+	AuthGRPC GRPCConfig   `yaml:"auth_grpc"`
+	AuthTLS  TLSConfig    `yaml:"auth_tls"`
+	Faults   FaultsConfig `yaml:"faults"`
 }
 
 type HTTPConfig struct {
@@ -30,6 +32,19 @@ type ProxyConfig struct {
 	ListenAddr   string        `yaml:"listen_addr" env-default:":9095"`
 	UpstreamAddr string        `yaml:"upstream_addr" env-default:"catalog-service:9091"`
 	Timeout      time.Duration `yaml:"timeout" env-default:"5s"`
+}
+
+type GRPCConfig struct {
+	Addr    string        `yaml:"addr" env-default:""`
+	Timeout time.Duration `yaml:"timeout" env-default:"3s"`
+}
+
+type TLSConfig struct {
+	Enabled        bool   `yaml:"enabled" env-default:"false"`
+	CAFile         string `yaml:"ca_file" env-default:""`
+	ServerName     string `yaml:"server_name" env-default:""`
+	ClientCertFile string `yaml:"client_cert_file" env-default:""`
+	ClientKeyFile  string `yaml:"client_key_file" env-default:""`
 }
 
 type FaultsConfig struct {
@@ -98,6 +113,28 @@ func (c *Config) Validate() error {
 	}
 	if c.Proxy.Timeout <= 0 {
 		return fmt.Errorf("proxy.timeout must be > 0")
+	}
+
+	if c.AuthGRPC.Addr == "" {
+		return fmt.Errorf("auth_grpc.addr is required")
+	}
+	if c.AuthGRPC.Timeout <= 0 {
+		return fmt.Errorf("auth_grpc.timeout must be > 0")
+	}
+
+	if c.AuthTLS.Enabled {
+		if c.AuthTLS.CAFile == "" {
+			return fmt.Errorf("auth_tls.ca_file is required when auth_tls.enabled=true")
+		}
+		if c.AuthTLS.ServerName == "" {
+			return fmt.Errorf("auth_tls.server_name is required when auth_tls.enabled=true")
+		}
+		if c.AuthTLS.ClientCertFile == "" {
+			return fmt.Errorf("auth_tls.client_cert_file is required when auth_tls.enabled=true")
+		}
+		if c.AuthTLS.ClientKeyFile == "" {
+			return fmt.Errorf("auth_tls.client_key_file is required when auth_tls.enabled=true")
+		}
 	}
 
 	if c.Faults.Delay < 0 {

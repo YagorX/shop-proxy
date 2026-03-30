@@ -6,18 +6,21 @@ import (
 	"fmt"
 	"log/slog"
 
+	authgrpc "github.com/YagorX/shop-proxy/internal/adapters/auth_grpc"
 	httpapp "github.com/YagorX/shop-proxy/internal/app/http"
 	tcpserv "github.com/YagorX/shop-proxy/internal/app/tcp"
+	authclient "github.com/YagorX/shop-proxy/internal/client/grpc/auth"
 	"github.com/YagorX/shop-proxy/internal/config"
 	"github.com/YagorX/shop-proxy/internal/observability"
 	httptransport "github.com/YagorX/shop-proxy/internal/transport/http"
 )
 
 type App struct {
-	logger    *slog.Logger
-	httpApp   *httpapp.Server
-	tcpServer *tcpserv.Server
-	errCh     chan error
+	logger     *slog.Logger
+	httpApp    *httpapp.Server
+	tcpServer  *tcpserv.Server
+	authClient *authclient.Client
+	errCh      chan error
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -40,10 +43,22 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("create tcp app: %w", err)
 	}
 
+	authGRPCClient, err := authclient.NewClient(runtimeLogger.Logger, cfg.AuthGRPC.Addr, cfg.AuthGRPC.Timeout, cfg.AuthTLS)
+	if err != nil {
+		return nil, fmt.Errorf("create auth grpc client: %w", err)
+	}
+
+	authRepo, err := authgrpc.NewRepository(authGRPCClient)
+	if err != nil {
+		_ = authGRPCClient.Close()
+		return nil, fmt.Errorf("create auth repository: %w", err)
+	}
+
 	httpRouter := httptransport.NewRouter(
 		httptransport.RouterDeps{
 			Logger:          runtimeLogger.Logger,
 			FaultController: tcpRuntime,
+			AuthService:     authRepo,
 		},
 	)
 
@@ -53,9 +68,10 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	return &App{
-		logger:    runtimeLogger.Logger,
-		httpApp:   httpRuntime,
-		tcpServer: tcpRuntime,
+		logger:     runtimeLogger.Logger,
+		httpApp:    httpRuntime,
+		tcpServer:  tcpRuntime,
+		authClient: authGRPCClient,
 
 		errCh: make(chan error, 2),
 	}, nil
@@ -118,6 +134,12 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.tcpServer != nil {
 		if err := a.tcpServer.Shutdown(ctx); err != nil {
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("stop tcp app: %w", err))
+		}
+	}
+
+	if a.authClient != nil {
+		if err := a.authClient.Close(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("close auth client: %w", err))
 		}
 	}
 
