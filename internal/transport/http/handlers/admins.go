@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -92,5 +93,7 @@ func (h *AdminHandler) Reset(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		slog.Default().Error("writeJSON: failed to encode response", slog.String("error", err.Error()))
+	}
 }
